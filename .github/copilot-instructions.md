@@ -8,6 +8,10 @@ GenericPLT (Generic Pins, Levels and Timings) is a standardized pin naming conve
 
 - **PLT**: Pins, Levels and Timings in an ATE (Automated Test Equipment) Test Program
 - **PLTA**: PLT Architect - the role responsible for defining and maintaining PLT
+- **Pindef**: Test Program collateral file where all GenericPLT pin names are integrated and defined
+  - Sort and Class operations each create their own Pindef files using GenericPLT as the naming convention
+  - **Critical Requirement**: Pin names for patterns must be identical and match the resource type between Sort and Class to enable content sharing and reuse between operations
+  - **Note**: Some pins defined in Sort or Class may not strictly follow GenericPLT conventions. For example, Class can have additional pins that fall outside GenericPLT scope. However, even for Class-specific pins, we will always look for a level of abstraction as much as possible. When abstraction is not achievable, pins may be defined directly in the Pindef using Package Name or RTL name. Even though some pins are not required to be matched between Sort and Class because they are not related to test content, some pins need to be kept with generic names inside Class operation to maintain abstraction from product packages
 - **GenericPLT Process**: The PLTA defines a possible list of Generic PinNames for a given dielet or family of dielets, which can work across testing operations like Sort, Class, and BurnIn
   - The PLTA starts by assessing possible RTL pin names for all the dielets involved in a given product
   - From this RTL assessment, the PLTA creates generic pin names based on HVM testing function rather than RTL-specific naming
@@ -103,7 +107,15 @@ GenericPLT pin names are used to generate test content patterns for ATE (Automat
 
 **Domain Purpose**: Domains are constructed for ATE test content pattern generation. A Domain contains the pins used in a given test pattern, organizing which pins are included when generating patterns for the ATE platform.
 
-**Important Note**: Not all GenericPLT pin names are used in test patterns. Some pins are used for analog measurements, monitoring purposes, or debug operations not intended for test patterns. However, the **majority of GenericPLT pin names are consumed by patterns**.
+**Important Note**: Domain definitions and segregation per dielet are **not related to GenericPLT** - they are related to **dielet disaggregation designs**. GenericPLT focuses on the pin naming convention itself, while domain organization is determined by the architectural design and disaggregation strategy of the product. Defining the number of domains and structure of domains is related to dielet testing disaggregation. Dielet disaggregation-based test programs can use GenericPLT to name pins, or some other arbitrary naming convention like RTL or package names, or something in between. However, if the goal is to reuse content across operations, across packages, across products and across families, then GenericPLT is a no-brainer architecture.
+
+**Terminology Distinction:**
+- **Pingroup** (lowercase, e.g., `cpu_all`, `hub_all`) - The actual collection/list of pins
+- **Domain** (uppercase, e.g., `CPU_ALL`, `HUB_ALL`) - The pattern generation construct that references a pingroup
+
+**Important Note on Pingroup Definitions**: Pingroups can be defined with or without IP scope prefixes depending on their usage context. When a pingroup is used **within its native IP scope**, pins are referenced directly without prefixes (e.g., `CPU_CLK_0_HPCDIF`). When the same pingroup is used **from PKG scope**, pins include IPfication prefixes (e.g., `IPC::CPU_CLK_0_HPCDIF`). The pingroup definition with prefixes enables cross-scope access from PKG to IP scopes.
+
+**Important Note**: Not all GenericPLT pin names are used in test patterns. Some pins are used for analog measurements, monitoring purposes, or debug operations not intended for test patterns. However, the **majority of GenericPLT pin names are consumed by patterns**. Additionally, some pins are not used in patterns but are kept generic between Sort and Class to enable Module Owners (MOs) to reuse collaterals between operations and minimize duplications or overwork.
 
 **Examples of Non-Pattern Pins:**
 - **Compensation/Reference**: `HUB_CNV_RCOMP` (resistance compensation)
@@ -111,7 +123,7 @@ GenericPLT pin names are used to generate test content patterns for ATE (Automat
 - **EDM (Edge Die Monitor)**: `BASE_EDM`, `CPU_EDM`, `CPU1_EDM`, `GCD_EDM`, `GND_EDM`, `HUB_EDM`, `PCD_EDM` (test structures around die periphery to check for damages due to dielet singulation)
 - **Mechanical/Detection**: `EKEY`, `SKTOCC_B` (socket presence/keying)
 - **DLVROUT (Delivery Output)**: `CPU_ATOM0_DLVROUT` through `CPU_ATOM3_DLVROUT`, `CPU_CORE0_DLVROUT` through `CPU_CORE3_DLVROUT`, `CPU_CCF_DLVROUT` (and CPU1_* variants) (analog voltage delivery monitoring)
-- **TDAU (Temperature Diode Analog Unit)**: `CPU_TDAU0`, `CPU1_TDAU0`, `GCD_TDAU0`, `PCD_TDAU0`, `HUB_TDAU0` (temperature sensing)
+- **TDAU (Temperature Diode Analog Unit)**: `CPU_TDAU0`, `CPU1_TDAU0`, `GCD_TDAU0`, `PCD_TDAU0`, `HUB_TDAU0` (temperature sensing - not used in patterns but standardized generically for Sort and Class collateral reuse by MOs)
 
 For the **NVL family**, there is **one Domain per dielet**, containing all pins (digital + I/O) for that dielet:
 
@@ -121,6 +133,25 @@ For the **NVL family**, there is **one Domain per dielet**, containing all pins 
 - **GCD_ALL** - All GCD pins (digital + I/O)
 - **HUB_ALL** - All HUB pins (digital + I/O: 112 digital + 524 I/O = 636 pins total)
 - **PCD_ALL** - All PCD pins (digital + I/O: 112 digital + 601 I/O = 713 pins total)
+
+**Domain Definition Structure:**
+
+| Domain Name | Resource Type | Available in Scopes | References Pingroup |
+|-------------|--------------|---------------------|---------------------|
+| CPU_ALL     | DPin         | IPC, PKG           | cpu_all             |
+| CPU_ALL_1   | DPin         | IPC, PKG           | cpu_all_1           |
+| GCD_ALL     | DPin         | IPG, PKG           | gcd_all             |
+| HUB_ALL     | DPin         | IPH, PKG           | hub_all             |
+| PCD_ALL     | DPin         | IPP, PKG           | pcd_all             |
+
+- **Domain** (uppercase) references a **pingroup** (lowercase)
+- Domains are available in **both their native IP scope and PKG scope**
+- **Domain Replication**: Domains defined in IP scopes are normally replicated at PKG scope
+  - When PKG replicates an IP domain, pin names must be IPfied (include IP scope prefix)
+- **PKG Domain Flexibility**: PKG domains can contain pins from a single IP, multiple IPs, or combinations across all IPs with PKG-specific pins
+- **PKG Domain Constraint**: PKG domains cannot be replicated at IP scopes if they contain pins beyond that specific IP
+- When used **within IP scope**: Pingroup pins referenced without prefixes
+- When used **from PKG scope**: Pingroup pins referenced with IPfication prefixes
 
 **Domain Usage Examples:**
 - **NVL S i3 (8C)**: Uses `CPU_ALL`, `GCD_ALL`, `HUB_ALL`, `PCD_ALL`
