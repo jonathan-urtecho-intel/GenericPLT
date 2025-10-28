@@ -63,12 +63,57 @@ The digital block is subdivided into smaller groups for easy handling and mappin
   - DP_0 and DP_1 are primarily intended for parametric measurements when tester channels are set to differential mode. Differential mode cannot perform parametric measurements, therefore channels need to be reconfigured to Data Pin mode to do so. Current HDMT tester platform allows mapping the same channel to two or more pins with different resource modes. HDMT does not allow channel sharing of pins under the same resource type.
   - **HDMT Limitation**: HDMT cannot change the configuration of a pin once the test program is loaded, so the approach is to create two pins with different names that share the same channel. For a given content, one pin under a specific resource is used, and for different content the other pin is used.
     - **Example**: pin_EC under channel 0.000 is defined as Enable Clock and pin_DP on the same channel 0.000 is configured as Data Pin mode. Depending on the content, pin_EC will be used or pin_DP will be used. Most likely for digital testing pin_EC will be in patterns, but when performing Opens/Shorts tests, pin_DP will be used.
-- **TAP**: Test Access Port pins
-- **RESET**: Reset execution and power good pins
+- **TAP**: Test Access Port pins for TAP/JTAG operations
+  - Contains **5 pins total**:
+    - **TRST**: Test Reset - resets the TAP controller (HDMT DPin resource)
+    - **TMS**: Test Mode Select - controls TAP state machine (HDMT DPin resource)
+    - **TDI**: Test Data In - serial data input (HDMT DPin resource)
+    - **TDO**: Test Data Out - serial data output (HDMT DPin resource)
+    - **TCK**: Test Clock - clock for TAP operations (HDMT EC resource)
+  - **GenericPLT TAP Pin Nomenclature**:
+    - Single dielet: `CPU_TRST`, `CPU_TCK`, `CPU_TMS`, `CPU_TDI`, `CPU_TDO`
+    - Multiple dielets: `CPU1_TRST`, `CPU1_TCK`, `CPU1_TMS`, `CPU1_TDI`, `CPU1_TDO` and `CPU2_TRST`, `CPU2_TCK`, `CPU2_TMS`, `CPU2_TDI`, `CPU2_TDO`
+- **RESET (RST)**: Reset execution, STRAPs configurations, power good assertion, and reset assertions
+  - Contains **20 pins total**: indexed from 00 to 19
+  - Pin group identification: **RST**
+  - **GenericPLT RESET Pin Nomenclature**:
+    - Single dielet: `CPU_RST_00` through `CPU_RST_19`
+    - Multiple dielets: `CPU1_RST_00` through `CPU1_RST_19` and `CPU2_RST_00` through `CPU2_RST_19`
 - **MBP**: Microbreakpoint pins
-- **TESTPORT**: Dielet fabric test port operations
-- **OBSERVABILITY**: Internal signals observability
-- **PROBE_TRIGGER**: FA/FA debug trigger pins
+  - Pin group identification: **MBP**
+  - Contains **9 pins total** subdivided into 3 smaller groups:
+    - **IN**: 3 pins indexed from 0 to 2
+    - **OUT**: 3 pins indexed from 0 to 2
+    - **INOUT**: 3 pins indexed from 0 to 2
+  - **GenericPLT MBP Pin Nomenclature**:
+    - Single dielet: `CPU_MBP_IN_0` through `CPU_MBP_IN_2`, `CPU_MBP_OUT_0` through `CPU_MBP_OUT_2`, `CPU_MBP_INOUT_0` through `CPU_MBP_INOUT_2`
+    - Multiple dielets: `CPU1_MBP_IN_0` through `CPU1_MBP_IN_2`, `CPU1_MBP_OUT_0` through `CPU1_MBP_OUT_2`, `CPU1_MBP_INOUT_0` through `CPU1_MBP_INOUT_2` (and CPU2_*)
+- **TESTPORT (TSTPRT)**: Dielet fabric test port operations
+  - Pin group identification: **TSTPRT**
+  - Used for dielet fabric operations like SSN or STF protocols
+  - Parallel ports for faster data retrieval/input into internal registers and DFX (faster than JTAG)
+  - Highly used for Scan testing and other DFX operations
+  - Contains **36 pins total** subdivided into input and output:
+    - **Input (I)**: 16 data pins + 2 input clocks (1 DPin + 1 EC) = 18 pins
+    - **Output (O)**: 16 data pins + 2 output clocks (1 DPin + 1 EC) = 18 pins
+  - **GenericPLT TESTPORT Pin Nomenclature**:
+    - Single dielet Input: `CPU_TSTPRT_I_CK_EC` (EC clock), `CPU_TSTPRT_I_CK` (DPin clock), `CPU_TSTPRT_I_00` through `CPU_TSTPRT_I_15` (data)
+    - Single dielet Output: `CPU_TSTPRT_O_CK_EC` (EC clock), `CPU_TSTPRT_O_CK` (DPin clock), `CPU_TSTPRT_O_00` through `CPU_TSTPRT_O_15` (data)
+    - Multiple dielets: Same pattern with `CPU1_TSTPRT_*` and `CPU2_TSTPRT_*` prefixes
+  - **Important Note**: If `CK_EC` and `CK` for input or output point to the same channel, they cannot be active at the same time. If `CK` (DPin) is activated, then `CK_EC` needs to be deactivated, and vice versa. This follows the same channel sharing principle as the CLOCKS block.
+    - **HDMT Implementation**: Channel activation/deactivation happens in the HDMT socket file (.soc) for a given test program. When a channel is deactivated, it is set to Undefined status, commonly referred to as "U'ing the pin out" or "U'ing out the pin". For example, to use the EC resource, you "U out" the DPin version of that pin in the socket file.
+- **OBSERVABILITY (OBS)**: Internal signals observability
+  - Contains **20 pins total**: indexed from 00 to 19
+  - Pin group identification: **OBS**
+  - **GenericPLT OBSERVABILITY Pin Nomenclature**:
+    - Single dielet: `CPU_OBS_00` through `CPU_OBS_19`
+    - Multiple dielets: `CPU1_OBS_00` through `CPU1_OBS_19` and `CPU2_OBS_00` through `CPU2_OBS_19`
+- **PROBES**: FA/FA debug trigger pins
+  - Contains **2 pins total**: TRIGGER type
+  - Used for FIFA or component debug to hook probing tools and simple scope waveform capturing for pattern debug
+  - **GenericPLT PROBES Pin Nomenclature**:
+    - Single dielet: `CPU_PROBE_TRIG0`, `CPU_PROBE_TRIG1`
+    - Multiple dielets: `CPU1_PROBE_TRIG0`, `CPU1_PROBE_TRIG1` and `CPU2_PROBE_TRIG0`, `CPU2_PROBE_TRIG1`
 
 **Note**: All dielets will require a digital testing block. GenericPLT digital testing block uses the same generic pin names across all dielet types (CPU, GCD, HUB, PCD). While the actual test patterns cannot be directly reused across different dielet types due to different RTL behaviors, the infrastructure to generate patterns for ATE (pattern headers, pin definitions, tooling) can be the same, enabling significant reuse of test program infrastructure and development processes.
 
