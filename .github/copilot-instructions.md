@@ -97,6 +97,54 @@ The digital block is subdivided into smaller groups for easy handling and mappin
 
 **Note**: All dielets will require a digital testing block. GenericPLT digital testing block uses the same generic pin names across all dielet types (CPU, GCD, HUB, PCD). While the actual test patterns cannot be directly reused across different dielet types due to different RTL behaviors, the infrastructure to generate patterns for ATE (pattern headers, pin definitions, tooling) can be the same, enabling significant reuse of test program infrastructure and development processes.
 
+#### Pattern Domains
+
+GenericPLT pin names are used to generate test content patterns for ATE (Automated Test Equipment), specifically for the HDMT (High Density Modular Test) platform. Pins included in a pattern are organized by **Domain** - a pin grouping definition.
+
+For the **NVL family**, there is **one Domain per dielet**, containing all pins (digital + I/O) for that dielet:
+
+**NVL Domain Definitions:**
+- **CPU_ALL** - All CPU pins (digital + I/O) for single CPU or first CPU instance
+- **CPU_ALL_1** - All CPU pins for second CPU instance (used in dual-CPU configurations like Sk i9 w BLLC 52C)
+- **GCD_ALL** - All GCD pins (digital + I/O)
+- **HUB_ALL** - All HUB pins (digital + I/O: 112 digital + 524 I/O = 636 pins total)
+- **PCD_ALL** - All PCD pins (digital + I/O: 112 digital + 601 I/O = 713 pins total)
+
+**Domain Usage Examples:**
+- **NVL S i3 (8C)**: Uses `CPU_ALL`, `GCD_ALL`, `HUB_ALL`, `PCD_ALL`
+- **Sk i9 w BLLC (52C)**: Uses `CPU_ALL`, `CPU_ALL_1`, `GCD_ALL`, `HUB_ALL`, `PCD_ALL`
+
+Patterns reference pins from their corresponding Domain, enabling clean separation and reusability across different product configurations.
+
+#### HDMT Test Program Architectures
+
+HDMT supports two test program architecture types that affect how GenericPLT pin names are referenced:
+
+##### 1. Monolithic Architecture
+- Traditional single test program structure
+- Pins referenced **directly without prefix**
+- Example: `CPU_CLK_0_HPCDIF`, `HUB_DDR_00_CLK_N`
+
+##### 2. IntraDUT (IDUT) Architecture
+- Modular test program structure with scope-based organization
+- Uses two types of scopes:
+
+**IP Scopes** (multiple per test program):
+- One scope per IP/dielet: `IPC::` (CPU), `IPG::` (GCD), `IPH::` (HUB), `IPP::` (PCD)
+- **Within IP scope**: Pins referenced directly without prefix
+  - Example: `CPU_CLK_0_HPCDIF` (when operating in IPC scope)
+- **From PKG scope**: Pins require **IPfication** (adding IP scope prefix)
+  - Example: `IPC::CPU_CLK_0_HPCDIF` (when referencing from package level)
+
+**PKG Scope** (package - one per test program):
+- Package-level operations and cross-IP coordination
+- To access IP pins from PKG scope: **IPfication required**
+- Package-specific pins: No prefix needed
+
+**IPfication**: The process of adding IP scope prefix to pin names when referencing them from PKG scope to IP scopes. This enables cross-scope references in IDUT architecture.
+
+**Key Concept**: GenericPLT pin names remain architecture-agnostic. The referencing method (with or without IP scope prefix) depends on the test program architecture and context, but the underlying generic names stay consistent.
+
 #### I/O Testing Block
 Defines pins involved in High Speed and Low Speed I/Os for a given dielet. Normally those pins are related to specific IPs like:
 - PCIe (PCI Express)
@@ -109,6 +157,161 @@ Defines pins involved in High Speed and Low Speed I/Os for a given dielet. Norma
 The I/O block can also be defined as pins used in the platform or system. Note that some dielets have platform and system I/Os while others don't.
 
 **Note**: Not all dielets require an I/O block.
+
+##### PCD I/O Testing Block
+
+The PCD (Platform Controller Die) I/O Testing Block contains the following IP groups:
+
+1. **INJREF** - Injection Reference pins
+   - Contains **10 pins**: `PCD_INJREF_00` through `PCD_INJREF_09`
+
+2. **CLKOUT** - Clock Output pins
+   - **DMI Clock**: `PCD_CLKOUT_DMI_N`, `PCD_CLKOUT_DMI_P` (differential pair)
+   - **SRC Clocks**: 9 differential pairs (SRC0-SRC8)
+     - `PCD_CLKOUT_SRC0_N`, `PCD_CLKOUT_SRC0_P` through `PCD_CLKOUT_SRC8_N`, `PCD_CLKOUT_SRC8_P`
+   - **Total**: 20 pins (10 differential pairs)
+
+3. **CNV** - Converged Interface
+   - **HSIF**: `PCD_CNV_HSIF_RXN`, `PCD_CNV_HSIF_RXP`, `PCD_CNV_HSIF_TXN`, `PCD_CNV_HSIF_TXP`
+   - **STEP**: `PCD_CNV_STEP_REXT`, `PCD_CNV_STEP_MON`
+   - **Total**: 6 pins
+
+4. **CSI** - Camera Serial Interface
+   - **CSIA**: 2 data lanes + clock (6 pins)
+     - `PCD_CSIA_CKN`, `PCD_CSIA_CKP`, `PCD_CSIA_D0N`, `PCD_CSIA_D0P`, `PCD_CSIA_D1N`, `PCD_CSIA_D1P`
+   - **CSIB**: 2 data lanes + clock (6 pins)
+     - `PCD_CSIB_CKN`, `PCD_CSIB_CKP`, `PCD_CSIB_D0N`, `PCD_CSIB_D0P`, `PCD_CSIB_D1N`, `PCD_CSIB_D1P`
+   - **CSIC**: 2 data lanes + clock (6 pins)
+     - `PCD_CSIC_CKN`, `PCD_CSIC_CKP`, `PCD_CSIC_D0N`, `PCD_CSIC_D0P`, `PCD_CSIC_D1N`, `PCD_CSIC_D1P`
+   - **Total**: 18 pins (3 CSI ports)
+
+5. **DMI** - Direct Media Interface
+   - **4 lanes** (00-03), each with RX/TX differential pairs
+     - `PCD_DMI_0_RXN`, `PCD_DMI_0_RXP`, `PCD_DMI_0_TXN`, `PCD_DMI_0_TXP` through
+     - `PCD_DMI_3_RXN`, `PCD_DMI_3_RXP`, `PCD_DMI_3_TXN`, `PCD_DMI_3_TXP`
+   - **Total**: 16 pins (4 lanes × 4 pins)
+
+6. **GPP** - General Purpose Pins
+   - **GPP_A**: 29 pins (`PCD_GPP_A_00` through `PCD_GPP_A_28`)
+   - **GPP_B**: 26 pins (`PCD_GPP_B_00` through `PCD_GPP_B_25`)
+   - **GPP_C**: 24 pins (`PCD_GPP_C_00` through `PCD_GPP_C_23`)
+   - **GPP_D**: 26 pins (`PCD_GPP_D_00` through `PCD_GPP_D_25`)
+   - **GPP_E**: 23 pins (`PCD_GPP_E_00` through `PCD_GPP_E_22`)
+   - **GPP_F**: 24 pins (`PCD_GPP_F_00` through `PCD_GPP_F_23`)
+   - **GPP_H**: 25 pins (`PCD_GPP_H_00` through `PCD_GPP_H_24`)
+   - **GPP_S**: 8 pins (`PCD_GPP_S_00` through `PCD_GPP_S_07`)
+   - **GPP_V**: 18 pins (`PCD_GPP_V_00` through `PCD_GPP_V_17`)
+   - **Total**: 203 pins
+
+7. **PCIE4** - PCIe Gen4 Interface
+   - **8 lanes** (00-07), each with RX/TX differential pairs
+     - `PCD_PCIE4_00_RXN`, `PCD_PCIE4_00_RXP`, `PCD_PCIE4_00_TXN`, `PCD_PCIE4_00_TXP` through
+     - `PCD_PCIE4_07_RXN`, `PCD_PCIE4_07_RXP`, `PCD_PCIE4_07_TXN`, `PCD_PCIE4_07_TXP`
+   - **Total**: 32 pins (8 lanes × 4 pins)
+
+8. **PCIE5** - PCIe Gen5 Interface
+   - **24 lanes** (00-23), each with RX/TX differential pairs
+     - `PCD_PCIE5_00_RXN`, `PCD_PCIE5_00_RXP`, `PCD_PCIE5_00_TXN`, `PCD_PCIE5_00_TXP` through
+     - `PCD_PCIE5_23_RXN`, `PCD_PCIE5_23_RXP`, `PCD_PCIE5_23_TXN`, `PCD_PCIE5_23_TXP`
+   - **Total**: 96 pins (24 lanes × 4 pins)
+
+9. **SPI0** - SPI Interface
+   - Contains **8 pins**: `PCD_SPI0_00` through `PCD_SPI0_07`
+
+10. **TCP** - Thunderbolt/USB-C Interface
+    - **TCP0**: 2 lanes + AUX (10 pins)
+      - `PCD_TCP0_0_TXN`, `PCD_TCP0_0_TXP`, `PCD_TCP0_0_TXRXN`, `PCD_TCP0_0_TXRXP`
+      - `PCD_TCP0_1_TXN`, `PCD_TCP0_1_TXP`, `PCD_TCP0_1_TXRXN`, `PCD_TCP0_1_TXRXP`
+      - `PCD_TCP0_AUXN`, `PCD_TCP0_AUXP`
+    - **TCP1**: 2 lanes + AUX (10 pins)
+    - **TCP2**: 2 lanes + AUX (10 pins)
+    - **TCP3**: 2 lanes + AUX (10 pins)
+    - **TCP4**: 2 lanes + AUX (10 pins)
+    - **Total**: 50 pins (5 TCP ports)
+
+11. **UFS** - Universal Flash Storage Interface
+    - **2 lanes** (00-01), each with RX/TX differential pairs
+      - `PCD_UFS_00_RXN`, `PCD_UFS_00_RXP`, `PCD_UFS_00_TXN`, `PCD_UFS_00_TXP`
+      - `PCD_UFS_01_RXN`, `PCD_UFS_01_RXP`, `PCD_UFS_01_TXN`, `PCD_UFS_01_TXP`
+    - **Total**: 8 pins (2 lanes × 4 pins)
+
+12. **USB3** - USB 3.x Interface
+    - **2 ports** (01-02), each with RX/TX differential pairs
+      - `PCD_USB3_01_RXN`, `PCD_USB3_01_RXP`, `PCD_USB3_01_TXN`, `PCD_USB3_01_TXP`
+      - `PCD_USB3_02_RXN`, `PCD_USB3_02_RXP`, `PCD_USB3_02_TXN`, `PCD_USB3_02_TXP`
+    - **Total**: 8 pins (2 ports × 4 pins)
+
+13. **EUSB2** - Enhanced USB 2.0 Interface
+    - **8 ports**: `PCD_EUSB2_01N`, `PCD_EUSB2_01P` through `PCD_EUSB2_08N`, `PCD_EUSB2_08P`
+    - **EUSB2V2**: `PCD_EUSB2V2_N`, `PCD_EUSB2V2_P`
+    - **Total**: 18 pins (8 differential pairs + 1 V2 pair)
+
+14. **Display/Panel** - Display and Panel Control
+    - **Backlight Control**: `PCD_L_BKLCTL`, `PCD_L_BKLTEN`, `PCD_L_VDDEND`
+    - **Display Port**: `PCD_DDSP_HPDALV`
+    - **Total**: 4 pins
+
+15. **MLK** - MLK Interface
+    - Contains **3 pins**: `PCD_MLK_CLK`, `PCD_MLK_DATA`, `PCD_MLK_RST`
+
+16. **TMUX** - Test Multiplexer
+    - Contains **51 pins**: `PCD_TMUX_00` through `PCD_TMUX_50`
+
+17. **LDO** - Low Dropout Regulators
+    - Contains **5 pins**: `PCD_DDI_LDO`, `PCD_DMI_LDO`, `PCD_PCIE_D_LDO`, `PCD_PCIE_E_LDO`, `PCD_PCIE_LDO`
+
+**PCD I/O Testing Block Total: 601 pins**
+
+##### HUB I/O Testing Block
+
+The HUB (Hub Die) I/O Testing Block contains DDR memory interface pins:
+
+1. **DDR** - DDR Memory Interface
+   - **xDQ (Data)**: 32 byte lanes, each with 8 data pins (00-07)
+     - `HUB_DDR_00_xDQ_00` through `HUB_DDR_00_xDQ_07`
+     - `HUB_DDR_01_xDQ_00` through `HUB_DDR_01_xDQ_07`
+     - ... continues through ...
+     - `HUB_DDR_31_xDQ_00` through `HUB_DDR_31_xDQ_07`
+     - **Total**: 256 pins (32 byte lanes × 8 bits)
+   
+   - **DQS (Data Strobe)**: 32 differential pairs
+     - `HUB_DDR_00_DQS_N`, `HUB_DDR_00_DQS_P` through `HUB_DDR_31_DQS_N`, `HUB_DDR_31_DQS_P`
+     - **Total**: 64 pins (32 differential pairs)
+   
+   - **CLK (Clock)**: 16 differential pairs
+     - `HUB_DDR_00_CLK_N`, `HUB_DDR_00_CLK_P` through `HUB_DDR_15_CLK_N`, `HUB_DDR_15_CLK_P`
+     - **Total**: 32 pins (16 differential pairs)
+   
+   - **WCK (Write Clock)**: 32 differential pairs
+     - `HUB_DDR_00_WCK_N`, `HUB_DDR_00_WCK_P` through `HUB_DDR_31_WCK_N`, `HUB_DDR_31_WCK_P`
+     - **Total**: 64 pins (32 differential pairs)
+   
+   - **CCC (Command/Control/Clock)**: 8 groups, each with 9 pins (00-08)
+     - `HUB_DDR_00_CCC_00` through `HUB_DDR_00_CCC_08`
+     - `HUB_DDR_01_CCC_00` through `HUB_DDR_01_CCC_08`
+     - ... continues through ...
+     - `HUB_DDR_07_CCC_00` through `HUB_DDR_07_CCC_08`
+     - **Total**: 72 pins (8 groups × 9 pins)
+   
+   - **DBI (Data Bus Inversion)**: 32 pins
+     - `HUB_DDR_00_DBI_00` through `HUB_DDR_31_DBI_00`
+     - **Total**: 32 pins
+   
+   - **ALERT**: 2 pins
+     - `HUB_DDR_ALERT_0`, `HUB_DDR_ALERT_1`
+     - **Total**: 2 pins
+
+2. **CNV** - Converged Interface
+   - **RCOMP**: `HUB_CNV_RCOMP`
+   - **Total**: 1 pin
+
+3. **PECI** - Platform Environment Control Interface
+   - **Single pin**: `HUB_PECI`
+   - **Total**: 1 pin
+
+**HUB I/O Testing Block Total: 524 pins**
+
+
 
 ### Implementation
 
