@@ -101,6 +101,18 @@ The digital block is subdivided into smaller groups for easy handling and mappin
 
 GenericPLT pin names are used to generate test content patterns for ATE (Automated Test Equipment), specifically for the HDMT (High Density Modular Test) platform. Pins included in a pattern are organized by **Domain** - a pin grouping definition.
 
+**Domain Purpose**: Domains are constructed for ATE test content pattern generation. A Domain contains the pins used in a given test pattern, organizing which pins are included when generating patterns for the ATE platform.
+
+**Important Note**: Not all GenericPLT pin names are used in test patterns. Some pins are used for analog measurements, monitoring purposes, or debug operations not intended for test patterns. However, the **majority of GenericPLT pin names are consumed by patterns**.
+
+**Examples of Non-Pattern Pins:**
+- **Compensation/Reference**: `HUB_CNV_RCOMP` (resistance compensation)
+- **Identification**: `CPU_ID`, `CPU_ID_2`, `CPU_ID_3` (device identification)
+- **EDM (Edge Die Monitor)**: `BASE_EDM`, `CPU_EDM`, `CPU1_EDM`, `GCD_EDM`, `GND_EDM`, `HUB_EDM`, `PCD_EDM` (test structures around die periphery to check for damages due to dielet singulation)
+- **Mechanical/Detection**: `EKEY`, `SKTOCC_B` (socket presence/keying)
+- **DLVROUT (Delivery Output)**: `CPU_ATOM0_DLVROUT` through `CPU_ATOM3_DLVROUT`, `CPU_CORE0_DLVROUT` through `CPU_CORE3_DLVROUT`, `CPU_CCF_DLVROUT` (and CPU1_* variants) (analog voltage delivery monitoring)
+- **TDAU (Temperature Diode Analog Unit)**: `CPU_TDAU0`, `CPU1_TDAU0`, `GCD_TDAU0`, `PCD_TDAU0`, `HUB_TDAU0` (temperature sensing)
+
 For the **NVL family**, there is **one Domain per dielet**, containing all pins (digital + I/O) for that dielet:
 
 **NVL Domain Definitions:**
@@ -131,6 +143,7 @@ HDMT supports two test program architecture types that affect how GenericPLT pin
 
 **IP Scopes** (multiple per test program):
 - One scope per IP/dielet: `IPC::` (CPU), `IPG::` (GCD), `IPH::` (HUB), `IPP::` (PCD)
+- Each IP scope can have **one or more domains**, or **no domains at all**
 - **Within IP scope**: Pins referenced directly without prefix
   - Example: `CPU_CLK_0_HPCDIF` (when operating in IPC scope)
 - **From PKG scope**: Pins require **IPfication** (adding IP scope prefix)
@@ -138,6 +151,7 @@ HDMT supports two test program architecture types that affect how GenericPLT pin
 
 **PKG Scope** (package - one per test program):
 - Package-level operations and cross-IP coordination
+- PKG scope can have **one or more domains**, or **no domains at all**
 - To access IP pins from PKG scope: **IPfication required**
 - Package-specific pins: No prefix needed
 
